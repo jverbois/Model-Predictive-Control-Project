@@ -2,3 +2,5 @@ matplotlib
 scipy
 casadi
 ipympl
+pyvista
+nbstripout
