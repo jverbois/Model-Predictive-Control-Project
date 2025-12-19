@@ -3,6 +3,9 @@ import numpy as np
 from control import dlqr
 from mpt4py import Polyhedron
 from scipy.signal import cont2discrete
+import matplotlib.pyplot as plt
+
+LIMIT = 1e50
 
 
 class MPCControl_base:
@@ -59,53 +62,106 @@ class MPCControl_base:
         #################################################
         # YOUR CODE HERE
 
-        Q = 0.01 * np.eye(self.nx)
+        # Cost matrices
+        Q = 0.1 * np.eye(self.nx)
         R = 0.01 * np.eye(self.nu)
         K, Qf, _ = dlqr(self.A, self.B, Q, R)
-        K = -K
-        # Define variables
+        K = -K  # Ensure K is state feedback
+
+        # Variables and parameters
         nx, nu, N = self.nx, self.nu, self.N
         x_var = cp.Variable((nx, N + 1), name="x")
         u_var = cp.Variable((nu, N), name="u")
         x0_var = cp.Parameter((nx,), name="x0")
 
-        # Costs
+        # Stage cost
         cost = 0
         for i in range(N):
-            cost += cp.quad_form(x_var[:, i], Q)
-            cost += cp.quad_form(u_var[:, i], R)
-
-        # Terminal cost
-        cost += cp.quad_form(x_var[:, N], Qf)
+            cost += cp.quad_form(x_var[:, i] - self.xs, Q)
+            cost += cp.quad_form(u_var[:, i] - self.us, R)
+        cost += cp.quad_form(x_var[:, N] - self.xs, Qf)  # Terminal cost
 
         constraints = []
-
         # Initial condition
         constraints.append(x_var[:, 0] == x0_var)
 
         # System dynamics
         constraints.append(x_var[:, 1:] == self.A @ x_var[:, :-1] + self.B @ u_var)
 
-        # Constraints
-        if 2 in self.u_ids:  # P_avg
-            # u in U = { u | Mu <= m }
-            M = np.zeros((2, self.nu))
-            M[0, 0] = -1
-            M[1, 0] = 1
-            m = np.array([-40, 80])
-            U = Polyhedron.from_Hrep(M, m)
-            KU = Polyhedron.from_Hrep(U.A @ K, U.b)
-            O_inf = max_invariant_set(self.A + self.B @ K, KU)
-            constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b.reshape(-1, 1))
+        # Inputs constraints [dR, dP, Pavg, Pdiff]
+        lb_u = np.array([-np.deg2rad(15), -np.deg2rad(15), 40.0, -20.0])[self.u_ids]
+        ub_u = np.array([np.deg2rad(15), np.deg2rad(15), 80.0, 20.0])[self.u_ids]
 
-        if 3 in self.x_ids or 4 in self.x_ids:  # alpha or beta
-            # x in X = { x | Fx <= f }
-            F = np.zeros((1, self.nx))
-            F[0, 1] = 1
-            f = np.array([0.1745])
-            X = Polyhedron.from_Hrep(F, f)
-            O_inf = max_invariant_set(self.A + self.B @ K, X)
-            constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b.reshape(-1, 1))
+        # States constraints [wx, wy, wz, alpha, beta, gamma, vx, vy, vz, x, y, z]
+        lb_x = np.array(
+            [
+                -LIMIT,
+                -LIMIT,
+                -LIMIT,
+                -np.deg2rad(10),
+                -np.deg2rad(10),
+                -LIMIT,
+                -LIMIT,
+                -LIMIT,
+                -LIMIT,
+                -LIMIT,
+                -LIMIT,
+                0.0,
+            ]
+        )[self.x_ids]
+        ub_x = np.array(
+            [
+                LIMIT,
+                LIMIT,
+                LIMIT,
+                np.deg2rad(10),
+                np.deg2rad(10),
+                LIMIT,
+                LIMIT,
+                LIMIT,
+                LIMIT,
+                LIMIT,
+                LIMIT,
+                LIMIT,
+            ]
+        )[self.x_ids]
+
+        # U = { u | Mu <= m }
+        M = np.vstack((-np.eye(nu), np.eye(nu)))
+        m = np.hstack((-lb_u, ub_u))
+        U = Polyhedron.from_Hrep(M, m)  # -u <= -lb_u, u <= ub_u
+        # Map to state constraints via feedback K
+        KU = Polyhedron.from_Hrep(U.A @ K, U.b)
+
+        # X = { x | Fx <= f }
+        F = np.vstack((-np.eye(nx), np.eye(nx)))
+        f = np.hstack((-lb_x, ub_x))
+        X = Polyhedron.from_Hrep(F, f)  # -x <= -lb_x, x <= ub_x
+
+        # Terminal invariant set
+        O_inf = max_invariant_set(self.A + self.B @ K, X.intersect(KU))
+        constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b)
+
+        # Input constraints for P_avg (index 2)
+        # if 2 in self.u_ids:
+        #     # Define input bounds
+        #     M = np.zeros((2, nu))
+        #     M[0, 0] = -1
+        #     M[1, 0] = 1
+        #     m = np.array([-40, 80])
+        #     U = Polyhedron.from_Hrep(M, m)
+        #     KU = Polyhedron.from_Hrep(U.A @ K, U.b)
+        #     O_inf = max_invariant_set(self.A + self.B @ K, KU)
+        #     constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b)
+        # if 3 in self.x_ids or 4 in self.x_ids:  # alpha or beta
+        #     # x in X = { x | Fx <= f }
+        #     F = np.zeros((2, self.nx))
+        #     F[0, 1] = -1
+        #     F[1, 1] = 1
+        #     f = np.array([np.deg2rad(10), np.deg2rad(10)])
+        #     X = Polyhedron.from_Hrep(F, f)
+        #     O_inf = max_invariant_set(self.A + self.B @ K, X)
+        #     constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b)
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
@@ -126,45 +182,32 @@ class MPCControl_base:
         #################################################
         # YOUR CODE HERE
 
-        x_traj, u_traj = self.open_loop_prediction(x0)
-        u0 = u_traj[0]
+        N = self.N
+
+        x_traj = np.zeros((self.nx, N + 1))
+        u_traj = np.zeros((self.nu, N))
+
+        u_var = self.ocp.variables()[1]
+        x0_var = self.ocp.parameters()[0]
+        # Closed-loop simulation
+        x_traj[:, 0] = x0
+        xk = x0
+        for k in range(N):
+            x0_var.value = xk
+            self.ocp.solve(solver=cp.PIQP, verbose=False)
+            # assert self.ocp.status == cp.OPTIMAL
+            uk = u_var.value[:, 0]
+            xk = self.A @ xk + self.B @ uk
+            x_traj[:, k + 1] = xk.flatten()
+            u_traj[:, k] = uk.flatten()
 
         # YOUR CODE HERE
         #################################################
 
-        return u0, x_traj, u_traj.T
-
-    def bellman(self):
-        Q = 0.001 * np.eye(self.nx)
-        R = 0.001 * np.eye(self.nu)
-        # control gain matrices
-        Klist = []
-
-        # Bellman/Riccati recursion
-        H = Q
-        for i in range(self.N - 1, -1, -1):
-            # K = -(R + B.T @ H @ B) @ np.linalg.inv(B.T @ H @ A)
-            K = -np.linalg.solve(R + self.B.T @ H @ self.B, self.B.T @ H @ self.A)
-            A_cl = self.A + self.B @ K
-            H = Q + K.T @ R @ K + A_cl.T @ H @ A_cl
-
-            Klist.append(K)
-
-        Klist = Klist[::-1]
-        return Klist
-
-    def open_loop_prediction(self, x0) -> tuple[np.ndarray, np.ndarray]:
-        Klist = self.bellman()
-        x = [x0]
-        u = []
-        for i in range(self.N):
-            u.append(Klist[i] @ x[-1])
-            x.append(self.A @ x[-1] + self.B @ u[i])
-        x = np.column_stack(x)
-        return np.array(x), np.array(u)
+        return u_traj[:, 0], x_traj, u_traj
 
 
-def max_invariant_set(A_cl, X: Polyhedron, max_iter=30) -> Polyhedron:
+def max_invariant_set(A_cl, X: Polyhedron, max_iter=100) -> Polyhedron:
     """
     Compute invariant set for an autonomous linear time invariant system x^+ = A_cl x
     """
@@ -187,5 +230,6 @@ def max_invariant_set(A_cl, X: Polyhedron, max_iter=30) -> Polyhedron:
         itr += 1
 
     if converged:
-        print("Maximum invariant set successfully computed after {itr} iterations.")
+        print(f"Maximum invariant set successfully computed after {itr} iterations.")
+
     return O
