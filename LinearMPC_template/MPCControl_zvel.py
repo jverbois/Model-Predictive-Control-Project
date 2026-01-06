@@ -1,11 +1,14 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
+from .constants import VZ
+from .constants import P_AVG
+from .constants import LB_U, UB_U
 
 
 class MPCControl_zvel(MPCControl_base):
-    x_ids: np.ndarray = np.array([8])
-    u_ids: np.ndarray = np.array([2])
+    x_ids: np.ndarray = np.array([VZ])
+    u_ids: np.ndarray = np.array([P_AVG])
 
     # only useful for part 5 of the project
     d_estimate: np.ndarray
@@ -25,6 +28,11 @@ class MPCControl_zvel(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+        idx = self.x_ids == VZ
+        self.Q[idx, idx] *= 1
+
+        self.lb_u = LB_U[self.u_ids]
+        self.ub_u = UB_U[self.u_ids]
 
         super()._setup_controller()
 

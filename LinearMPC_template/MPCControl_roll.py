@@ -2,10 +2,14 @@ import numpy as np
 
 from .MPCControl_base import MPCControl_base
 
+from .constants import WZ, GAMA
+from .constants import P_DIFF
+from .constants import LB_U, UB_U
+
 
 class MPCControl_roll(MPCControl_base):
-    x_ids: np.ndarray = np.array([2, 5])
-    u_ids: np.ndarray = np.array([3])
+    x_ids: np.ndarray = np.array([WZ, GAMA])
+    u_ids: np.ndarray = np.array([P_DIFF])
 
     def __init__(
         self,
@@ -21,6 +25,9 @@ class MPCControl_roll(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+
+        self.lb_u = LB_U[self.u_ids]
+        self.ub_u = UB_U[self.u_ids]
 
         super()._setup_controller()
 
