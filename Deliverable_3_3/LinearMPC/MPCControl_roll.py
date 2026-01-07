@@ -1,14 +1,15 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
-from .utils import WX, ALPHA, VY
-from .utils import DR
-from .utils import LB_X, UB_X, LB_U, UB_U
+
+from .utils import WZ, GAMA
+from .utils import P_DIFF
+from .utils import LB_U, UB_U
 
 
-class MPCControl_yvel(MPCControl_base):
-    x_ids: np.ndarray = np.array([WX, ALPHA, VY])
-    u_ids: np.ndarray = np.array([DR])
+class MPCControl_roll(MPCControl_base):
+    x_ids: np.ndarray = np.array([WZ, GAMA])
+    u_ids: np.ndarray = np.array([P_DIFF])
 
     def __init__(
         self,
@@ -24,11 +25,8 @@ class MPCControl_yvel(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
-        idx = self.x_ids == VY
-        self.Q[idx, idx] *= 2
-
-        self.lb_x = LB_X[self.x_ids]
-        self.ub_x = UB_X[self.x_ids]
+        idx = self.x_ids == GAMA
+        self.Q[idx, idx] *= 250
 
         self.lb_u = LB_U[self.u_ids]
         self.ub_u = UB_U[self.u_ids]
@@ -43,7 +41,7 @@ class MPCControl_yvel(MPCControl_base):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         #################################################
         # YOUR CODE HERE
-        
+
         u0, x_traj, u_traj = super().get_u(x0, x_target, u_target)
 
         # YOUR CODE HERE
