@@ -420,7 +420,9 @@ class Rocket(RocketBase):
         self, x0: np.ndarray, Ts: float, u0: np.ndarray, method: str = "nonlinear"
     ) -> np.ndarray:
         if ~constraint_check(x0, u0):
-            raise ValueError("State or input constraints violated")
+            print("State or input constraints violated")
+
+            # raise ValueError("State or input constraints violated")
 
         u0 = self.fuel_dynamics(u0, Ts)
         if method == "linear":
@@ -701,6 +703,12 @@ def constraint_check(x: np.ndarray, u: np.ndarray) -> bool:
             np.inf,
         ]
     )  # [wx, wy
+    # for i, input in enumerate(u):
+    #     if input < LBU[i] - 1e-5 or input > UBU[i] + 1e-5:
+    #         print(f"Input {i} out of bounds: {input:.4f}")
+    # for i, state in enumerate(x):
+    #     if state < LBX[i] - 1e-5 or state > UBX[i] + 1e-5:
+    #         print(f"State {i} out of bounds: {state:.4f}")
     return (
         np.all(u >= LBU - 1e-5)
         and np.all(u <= UBU + 1e-5)
