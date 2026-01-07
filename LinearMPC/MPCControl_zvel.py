@@ -1,9 +1,9 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
-from .constants import VZ
-from .constants import P_AVG
-from .constants import LB_U, UB_U
+from .utils import VZ
+from .utils import P_AVG
+from .utils import LB_U, UB_U
 
 
 class MPCControl_zvel(MPCControl_base):
@@ -29,7 +29,7 @@ class MPCControl_zvel(MPCControl_base):
         #################################################
         # YOUR CODE HERE
         idx = self.x_ids == VZ
-        self.Q[idx, idx] *= 1
+        self.Q[idx, idx] *= 35
 
         self.lb_u = LB_U[self.u_ids]
         self.ub_u = UB_U[self.u_ids]

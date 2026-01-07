@@ -4,7 +4,7 @@ from control import dlqr
 from mpt4py import Polyhedron
 from scipy.signal import cont2discrete
 import matplotlib.pyplot as plt
-from .constants import LIMIT, TO_STRING
+from .utils import LIMIT, X_TO_STRING
 
 
 class MPCControl_base:
@@ -81,7 +81,7 @@ class MPCControl_base:
         cost = 0
         for i in range(N):
             cost += cp.quad_form(x_var[:, i], self.Q)
-            cost += cp.quad_form(u_var[:, i], self.R)
+            cost += cp.quad_form(u_var[:, i] - self.us, self.R)
 
         # Terminal cost
         cost += cp.quad_form(x_var[:, N], Qf)
@@ -107,7 +107,7 @@ class MPCControl_base:
             # Input constraints
             constraints.append(U.A @ u_var <= U.b.reshape((-1, 1)))
             # Map to state constraints via feedback K
-            KU = Polyhedron.from_Hrep(-U.A @ K, np.sign(U.b) * (np.abs(U.b) - self.us))
+            KU = Polyhedron.from_Hrep(U.A @ K, U.b - U.A @ self.us)
             constr_set = KU
 
         if self.lb_x is not None and self.ub_x is not None:
@@ -118,9 +118,6 @@ class MPCControl_base:
             X = Polyhedron.from_Hrep(F[idx], f[idx])
             # State constraints
             constraints.append(X.A @ x_var <= X.b.reshape((-1, 1)))
-            for i in range(-100, 100):
-                if X.contains(i * np.ones((self.nx))):
-                    print(f"X contains {i}*1")
             if constr_set is None:
                 constr_set = X
             else:
@@ -128,9 +125,11 @@ class MPCControl_base:
 
         if constr_set is not None:
             # Terminal invariant set
-            O_inf = self.max_invariant_set(self.A + self.B @ K, constr_set)
+            self.compute_max_invariant_set(self.A + self.B @ K, constr_set)
             # Terminal constraints
-            constraints.append(O_inf.A @ x_var[:, -1] <= O_inf.b.reshape((-1, 1)))
+            constraints.append(
+                self.O_inf.A @ x_var[:, -1] <= self.O_inf.b.reshape((-1, 1))
+            )
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
 
@@ -150,32 +149,25 @@ class MPCControl_base:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         #################################################
         # YOUR CODE HERE
-
-        N = self.N
-
-        x_traj = np.zeros((self.nx, N + 1))
-        u_traj = np.zeros((self.nu, N))
-
+        x_var = self.ocp.variables()[0]
         u_var = self.ocp.variables()[1]
         x0_var = self.ocp.parameters()[0]
-        # Closed-loop simulation
-        x_traj[:, 0] = x0
-        xk = x0
-        for k in range(N):
-            x0_var.value = xk
-            self.ocp.solve(solver=cp.PIQP, verbose=False)
-            # assert self.ocp.status == cp.OPTIMAL
-            uk = u_var.value[:, 0]
-            xk = self.A @ xk + self.B @ (uk - self.us)
-            x_traj[:, k + 1] = xk.flatten()
-            u_traj[:, k] = uk.flatten()
 
+        x0_var.value = x0
+
+        self.ocp.solve(solver=cp.PIQP, verbose=False)
+        assert self.ocp.status == cp.OPTIMAL
+
+        x_traj = np.array(x_var.value)
+        u_traj = np.array(u_var.value)
         # YOUR CODE HERE
         #################################################
 
         return u_traj[:, 0], x_traj, u_traj
 
-    def max_invariant_set(self, A_cl, X: Polyhedron, max_iter=1000) -> Polyhedron:
+    def compute_max_invariant_set(
+        self, A_cl, X: Polyhedron, max_iter=100
+    ) -> Polyhedron:
         """
         Compute invariant set for an autonomous linear time invariant system x^+ = A_cl x
         """
@@ -195,40 +187,42 @@ class MPCControl_base:
             if O == Oprev:
                 converged = True
                 break
-            print(f"Iteration {itr}... not yet converged")
             itr += 1
-        legend = TO_STRING[self.x_ids]
-        if O.dim == 3:
-            ax = plt.figure().gca()
-            O.projection(dims=(0, 1)).plot(ax)
-            ax.set_title("Max invariant set projection")
-            ax.set_xlabel(legend[0])
-            ax.set_ylabel(legend[1])
-            ax = plt.figure().gca()
-            O.projection(dims=(1, 2)).plot(ax)
-            ax.set_title("Max invariant set projection")
-            ax.set_xlabel(legend[1])
-            ax.set_ylabel(legend[2])
-        elif O.dim == 2:
-            ax = plt.figure().gca()
-            O.plot(ax)
-            ax.set_title("Max invariant set")
-            ax.set_xlabel(legend[0])
-            ax.set_ylabel(legend[1])
-        elif O.dim == 1:
-            print_readable_constraints(O.A, O.b, legend)
+
         if converged:
             print(
                 f"Maximum invariant set successfully computed after {itr} iterations."
             )
+            self.O_inf = O
 
         return O
 
+    def plot_max_invariant_set(self) -> None:
+        P = self.O_inf
+        legend = X_TO_STRING[self.x_ids]
+        if P.dim == 3:
+            title = "Max invariant set projection"
+            plot_polyhedron_2D(P.projection(dims=(0, 1)), title, legend[0:2])
+            plot_polyhedron_2D(P.projection(dims=(1, 2)), title, legend[1:3])
+        elif P.dim == 2:
+            title = "Max invariant set"
+            plot_polyhedron_2D(P.projection(dims=(0, 1)), title, legend)
+        elif P.dim == 1:
+            print_readable_constraints(P, legend)
 
-def print_readable_constraints(A, b, state_names):
 
+def plot_polyhedron_2D(P: Polyhedron, title, legend):
+    ax = plt.figure().gca()
+    P.plot(ax)
+    ax.set_title(title)
+    ax.set_xlabel(legend[0])
+    ax.set_ylabel(legend[1])
+
+
+def print_readable_constraints(P: Polyhedron, legend):
+    A, b = P.A, P.b
     for i, (a_row, b_val) in enumerate(zip(A, b)):
-        for j, (coeff, name) in enumerate(zip(a_row, state_names)):
+        for j, (coeff, name) in enumerate(zip(a_row, legend)):
             if coeff < 0:
                 print(f"{name} >= {b_val/coeff:10.4f}")
             elif coeff > 0:

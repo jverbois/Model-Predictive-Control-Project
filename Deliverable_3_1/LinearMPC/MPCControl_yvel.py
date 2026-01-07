@@ -1,15 +1,14 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
+from .utils import WX, ALPHA, VY
+from .utils import DR
+from .utils import LB_X, UB_X, LB_U, UB_U
 
-from .constants import WY, BETA, VX
-from .constants import DP
-from .constants import LB_X, UB_X, LB_U, UB_U
 
-
-class MPCControl_xvel(MPCControl_base):
-    x_ids: np.ndarray = np.array([WY, BETA, VX])
-    u_ids: np.ndarray = np.array([DP])
+class MPCControl_yvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([WX, ALPHA, VY])
+    u_ids: np.ndarray = np.array([DR])
 
     def __init__(
         self,
@@ -25,7 +24,7 @@ class MPCControl_xvel(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
-        idx = self.x_ids == VX
+        idx = self.x_ids == VY
         self.Q[idx, idx] *= 1
 
         self.lb_x = LB_X[self.x_ids]

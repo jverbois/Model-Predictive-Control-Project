@@ -1,15 +1,18 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
+from .utils import VZ
+from .utils import P_AVG
+from .utils import LB_U, UB_U
 
-from .constants import WZ, GAMA
-from .constants import P_DIFF
-from .constants import LB_U, UB_U
 
+class MPCControl_zvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([VZ])
+    u_ids: np.ndarray = np.array([P_AVG])
 
-class MPCControl_roll(MPCControl_base):
-    x_ids: np.ndarray = np.array([WZ, GAMA])
-    u_ids: np.ndarray = np.array([P_DIFF])
+    # only useful for part 5 of the project
+    d_estimate: np.ndarray
+    d_gain: float
 
     def __init__(
         self,
@@ -25,6 +28,8 @@ class MPCControl_roll(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+        idx = self.x_ids == VZ
+        self.Q[idx, idx] *= 35
 
         self.lb_u = LB_U[self.u_ids]
         self.ub_u = UB_U[self.u_ids]
@@ -46,3 +51,22 @@ class MPCControl_roll(MPCControl_base):
         #################################################
 
         return u0, x_traj, u_traj
+
+    def setup_estimator(self):
+        # FOR PART 5 OF THE PROJECT
+        ##################################################
+        # YOUR CODE HERE
+
+        self.d_estimate = ...
+        self.d_gain = ...
+
+        # YOUR CODE HERE
+        ##################################################
+
+    def update_estimator(self, x_data: np.ndarray, u_data: np.ndarray) -> None:
+        # FOR PART 5 OF THE PROJECT
+        ##################################################
+        # YOUR CODE HERE
+        self.d_estimate = ...
+        # YOUR CODE HERE
+        ##################################################

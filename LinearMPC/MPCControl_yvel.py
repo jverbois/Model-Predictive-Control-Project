@@ -1,9 +1,9 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
-from .constants import WX, ALPHA, VY
-from .constants import DR
-from .constants import LB_X, UB_X, LB_U, UB_U
+from .utils import WX, ALPHA, VY
+from .utils import DR
+from .utils import LB_X, UB_X, LB_U, UB_U
 
 
 class MPCControl_yvel(MPCControl_base):
@@ -29,7 +29,7 @@ class MPCControl_yvel(MPCControl_base):
 
         self.lb_x = LB_X[self.x_ids]
         self.ub_x = UB_X[self.x_ids]
-        
+
         self.lb_u = LB_U[self.u_ids]
         self.ub_u = UB_U[self.u_ids]
 
