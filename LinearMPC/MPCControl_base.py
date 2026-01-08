@@ -74,23 +74,23 @@ class MPCControl_base:
         # Variables and parameters
         nx, nu, N = self.nx, self.nu, self.N
         x_var = cp.Variable((nx, N + 1), name="x")
-        u_var = cp.Variable((nu, N), name="u")
-        x0_var = cp.Parameter((nx,), name="x0")
         s_var = cp.Variable((nx, N + 1), name="s")
+        u_var = cp.Variable((nu, N), name="u")
+        x0_par = cp.Parameter((nx,), name="x0")
 
         # Stage cost
         cost = 0
         for i in range(N):
             cost += cp.quad_form(x_var[:, i] - self.xs, self.Q)
             cost += cp.quad_form(u_var[:, i] - self.us, self.R)
-            cost += 1e3 * np.sum(np.array([s**2 for s in s_var[:, i]]))
+            cost += 1e10 * np.sum(np.array([s**2 for s in s_var[:, i]]))
         # Terminal cost
         cost += cp.quad_form(x_var[:, N] - self.xs, Qf)
 
         constraints = []
 
         # Initial condition
-        constraints.append(x_var[:, 0] == x0_var)
+        constraints.append(x_var[:, 0] == x0_par)
 
         # System dynamics
         constraints.append(
@@ -156,14 +156,14 @@ class MPCControl_base:
         # YOUR CODE HERE
         x_var = self.ocp.variables()[0]
         u_var = self.ocp.variables()[1]
-        x0_var = self.ocp.parameters()[0]
+        x0_par = self.ocp.parameters()[0]
 
         if x_target is None:
             x_target = self.xs
         if u_target is None:
             u_target = self.us
 
-        x0_var.value = x0 - x_target
+        x0_par.value = x0 - x_target
 
         self.ocp.solve(solver=cp.PIQP, verbose=False)
         assert self.ocp.status == cp.OPTIMAL

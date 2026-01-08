@@ -75,7 +75,7 @@ class MPCControl_base:
         nx, nu, N = self.nx, self.nu, self.N
         x_var = cp.Variable((nx, N + 1), name="x")
         u_var = cp.Variable((nu, N), name="u")
-        x0_var = cp.Parameter((nx,), name="x0")
+        x0_par = cp.Parameter((nx,), name="x0")
 
         # Stage cost
         cost = 0
@@ -89,7 +89,7 @@ class MPCControl_base:
         constraints = []
 
         # Initial condition
-        constraints.append(x_var[:, 0] == x0_var)
+        constraints.append(x_var[:, 0] == x0_par)
 
         # System dynamics
         constraints.append(
@@ -154,14 +154,14 @@ class MPCControl_base:
         # YOUR CODE HERE
         x_var = self.ocp.variables()[0]
         u_var = self.ocp.variables()[1]
-        x0_var = self.ocp.parameters()[0]
+        x0_par = self.ocp.parameters()[0]
 
         if x_target is None:
             x_target = self.xs
         if u_target is None:
             u_target = self.us
 
-        x0_var.value = x0 - x_target
+        x0_par.value = x0 - x_target
 
         self.ocp.solve(solver=cp.PIQP, verbose=False)
         assert self.ocp.status == cp.OPTIMAL
