@@ -83,7 +83,7 @@ class MPCControl_base:
         for i in range(N):
             cost += cp.quad_form(x_var[:, i] - self.xs, self.Q)
             cost += cp.quad_form(u_var[:, i] - self.us, self.R)
-            cost += 1e3 * np.sum(np.array([s**2 for s in s_var[:, i]]))
+            cost += 1e10 * np.sum(np.array([s**2 for s in s_var[:, i]]))
         # Terminal cost
         cost += cp.quad_form(x_var[:, N] - self.xs, Qf)
 
