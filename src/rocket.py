@@ -420,7 +420,7 @@ class Rocket(RocketBase):
         self, x0: np.ndarray, Ts: float, u0: np.ndarray, method: str = "nonlinear"
     ) -> np.ndarray:
         if ~constraint_check(x0, u0):
-            print("State or input constraints violated", x0)
+            print(f"State or input constraints violated,\t Alpha = {np.rad2deg(x0[3])},\t Beta = {np.rad2deg(x0[4])}")
 
             # raise ValueError("State or input constraints violated")
 
