@@ -3,8 +3,9 @@ import numpy as np
 from control import dlqr
 from mpt4py import Polyhedron
 from scipy.signal import cont2discrete
+from scipy.signal import place_poles
 import matplotlib.pyplot as plt
-from .utils import LIMIT, X_TO_STRING
+from .utils import LIMIT, X_TO_STRING, BD, NB_D, VZ, GAMA
 
 
 class MPCControl_base:
@@ -45,18 +46,23 @@ class MPCControl_base:
         self.u_ids = u_ids
         self.nx = len(self.x_ids)
         self.nu = len(self.u_ids)
+        self.nd = NB_D
         self.Q = np.eye(self.nx)
         self.R = np.eye(self.nu)
         self.lb_u = None
         self.ub_u = None
         self.lb_x = None
         self.ub_x = None
+        self.x_hat_next = None
+        self.d_hat = None
 
         # System definition
         A_red = A[np.ix_(self.x_ids, self.x_ids)]
         B_red = B[np.ix_(self.x_ids, self.u_ids)]
 
         self.A, self.B = self._discretize(A_red, B_red, Ts)
+
+        self.Bd = BD[self.x_ids, :]
 
         self.xs = xs[self.x_ids]
         self.us = us[self.u_ids]
@@ -73,32 +79,33 @@ class MPCControl_base:
 
         # Variables and parameters
         nx, nu, N = self.nx, self.nu, self.N
-        x_var = cp.Variable((nx, N + 1), name="x")
-        u_var = cp.Variable((nu, N), name="u")
-        x0_par = cp.Parameter((nx,), name="x0")
-        s_var = cp.Variable((nx, N + 1), name="s")
+        self.x_var = cp.Variable((nx, N + 1), name="x")
+        self.s_var = cp.Variable((nx, N + 1), name="s")
+        self.u_var = cp.Variable((nu, N), name="u")
+        self.x0_par = cp.Parameter(nx, name="x0_hat")
 
         # Stage cost
         cost = 0
         for i in range(N):
-            cost += cp.quad_form(x_var[:, i] - self.xs, self.Q)
-            cost += cp.quad_form(u_var[:, i] - self.us, self.R)
-            cost += 1e10 * np.sum(np.array([s**2 for s in s_var[:, i]]))
+            cost += cp.quad_form(self.x_var[:, i] - self.xs, self.Q)
+            cost += cp.quad_form(self.u_var[:, i] - self.us, self.R)
+            cost += 1e10 * cp.sum_squares(self.s_var[:, i])
         # Terminal cost
-        cost += cp.quad_form(x_var[:, N] - self.xs, Qf)
+        cost += cp.quad_form(self.x_var[:, N] - self.xs, Qf)
 
         constraints = []
 
         # Initial condition
-        constraints.append(x_var[:, 0] == x0_par)
+        constraints.append(self.x_var[:, 0] == self.x0_par)
 
         # System dynamics
-        constraints.append(
-            x_var[:, 1:]
-            == self.xs
-            + self.A @ (x_var[:, :-1] - self.xs.reshape(-1, 1))
-            + self.B @ (u_var - self.us)
-        )
+        for k in range(N):
+            constraints.append(
+                self.x_var[:, k + 1]
+                == self.xs
+                + self.A @ (self.x_var[:, k] - self.xs)
+                + self.B @ (self.u_var[:, k] - self.us)
+            )
 
         constr_set = None
         if self.lb_u is not None and self.ub_u is not None:
@@ -109,7 +116,7 @@ class MPCControl_base:
             U = Polyhedron.from_Hrep(M[idx, :], m[idx])
 
             # Input constraints
-            constraints.append(U.A @ u_var <= U.b.reshape((-1, 1)))
+            constraints.append(U.A @ self.u_var <= U.b.reshape((-1, 1)))
             # Map to state constraints via feedback K
             KU = Polyhedron.from_Hrep(U.A @ K, U.b - U.A @ self.us)
             constr_set = KU
@@ -121,7 +128,9 @@ class MPCControl_base:
             idx = f != LIMIT
             X = Polyhedron.from_Hrep(F[idx], f[idx])
             # State constraints
-            constraints.append(X.A @ x_var <= X.b.reshape((-1, 1)) + X.A @ s_var)
+            constraints.append(
+                X.A @ self.x_var <= X.b.reshape((-1, 1)) + X.A @ self.s_var
+            )
 
             if constr_set is None:
                 constr_set = X
@@ -133,7 +142,7 @@ class MPCControl_base:
             self.compute_max_invariant_set(self.A + self.B @ K, constr_set)
             # Terminal constraints
             constraints.append(
-                self.O_inf.A @ x_var[:, -1] <= self.O_inf.b.reshape((-1, 1))
+                self.O_inf.A @ self.x_var[:, -1] <= self.O_inf.b.reshape((-1, 1))
             )
 
         self.ocp = cp.Problem(cp.Minimize(cost), constraints)
@@ -154,22 +163,20 @@ class MPCControl_base:
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         #################################################
         # YOUR CODE HERE
-        x_var = self.ocp.variables()[0]
-        u_var = self.ocp.variables()[1]
-        x0_par = self.ocp.parameters()[0]
 
         if x_target is None:
             x_target = self.xs
         if u_target is None:
             u_target = self.us
 
-        x0_par.value = x0 - x_target
+        self.x0_par.value = x0 - x_target
 
         self.ocp.solve(solver=cp.PIQP, verbose=False)
         assert self.ocp.status == cp.OPTIMAL
 
-        x_traj = np.array(x_var.value) + x_target.reshape(-1, 1)
-        u_traj = np.array(u_var.value)
+        x_traj = np.array(self.x_var.value) + x_target.reshape(-1, 1)
+        u_traj = np.array(self.u_var.value)
+
         # YOUR CODE HERE
         #################################################
 

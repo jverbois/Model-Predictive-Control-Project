@@ -1,8 +1,11 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-WX, WY, WZ, ALPHA, BETA, GAMA, VX, VY, VZ, X, Y, Z = range(12)
-DR, DP, P_AVG, P_DIFF = range(4)
+NB_X = 12
+NB_U = 4
+NB_D = 1
+WX, WY, WZ, ALPHA, BETA, GAMA, VX, VY, VZ, X, Y, Z = range(NB_X)
+DR, DP, P_AVG, P_DIFF = range(NB_U)
 
 X_TO_STRING = np.array(
     [
@@ -73,11 +76,16 @@ UB_X = np.array(
 LB_U = np.array([-np.deg2rad(15), -np.deg2rad(15), 40, -20.0])
 UB_U = np.array([np.deg2rad(15), np.deg2rad(15), 80, 20.0])
 
+BD = np.zeros((NB_X, NB_D))
+BD[VZ] = 1
+
 
 def plot_trajectory(t_cl, x_cl, u_cl, t_ol, x_ol, u_ol, mpc=None):
 
     if mpc is None:
-        x_ids = np.array(range(len(X_TO_STRING)))[np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])]
+        x_ids = np.array(range(len(X_TO_STRING)))[
+            np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+        ]
         u_ids = np.array(range(len(U_TO_STRING)))[np.array([0, 1, 2, 3])]
         print(u_ids)
     else:
