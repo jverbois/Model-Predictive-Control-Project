@@ -7,7 +7,7 @@ from .utils import DP
 from .utils import LB_X, UB_X, LB_U, UB_U
 
 
-class MPCControl_xvel(MPCControl_base):
+class MPCControl_x(MPCControl_base):
     x_ids: np.ndarray = np.array([WY, BETA, VX, X])
     u_ids: np.ndarray = np.array([DP])
 
@@ -28,7 +28,9 @@ class MPCControl_xvel(MPCControl_base):
         idx = self.x_ids == VX
         self.Q[idx, idx] *= 1
         idx = self.x_ids == WY
-        self.Q[idx, idx] *= 200
+        self.Q[idx, idx] *= 50
+        idx = self.x_ids == X
+        self.Q[idx, idx] *= 10
 
         
         self.lb_x = LB_X[self.x_ids]

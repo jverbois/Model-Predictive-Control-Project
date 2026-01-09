@@ -1,21 +1,40 @@
 import numpy as np
 
 from .MPCControl_base import MPCControl_base
+from .utils import VZ, Z
+from .utils import P_AVG
+from .utils import LB_U, UB_U
 
 
-class MPCControl_z(MPCControl_base):
-    x_ids: np.ndarray = np.array([8, 11])
-    u_ids: np.ndarray = np.array([2])
+class MPCControl_zvel(MPCControl_base):
+    x_ids: np.ndarray = np.array([VZ, Z])
+    u_ids: np.ndarray = np.array([P_AVG])
 
     # only useful for part 5 of the project
     d_estimate: np.ndarray
     d_gain: float
 
+    def __init__(
+        self,
+        A: np.ndarray,
+        B: np.ndarray,
+        xs: np.ndarray,
+        us: np.ndarray,
+        Ts: float,
+        H: float,
+    ) -> None:
+        super().__init__(A, B, self.x_ids, self.u_ids, xs, us, Ts, H)
+
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+        idx = self.x_ids == VZ
+        self.Q[idx, idx] *= 35
 
-        self.ocp = ...
+        self.lb_u = LB_U[self.u_ids]
+        self.ub_u = UB_U[self.u_ids]
+
+        super()._setup_controller()
 
         # YOUR CODE HERE
         #################################################
@@ -25,10 +44,8 @@ class MPCControl_z(MPCControl_base):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         #################################################
         # YOUR CODE HERE
-
-        u0 = ...
-        x_traj = ...
-        u_traj = ...
+        
+        u0, x_traj, u_traj = super().get_u(x0, x_target, u_target)
 
         # YOUR CODE HERE
         #################################################

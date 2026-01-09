@@ -7,7 +7,7 @@ from .utils import DP
 from .utils import LB_X, UB_X, LB_U, UB_U
 
 
-class MPCControl_xvel(MPCControl_base):
+class MPCControl_x(MPCControl_base):
     x_ids: np.ndarray = np.array([WY, BETA, VX, X])
     u_ids: np.ndarray = np.array([DP])
 
