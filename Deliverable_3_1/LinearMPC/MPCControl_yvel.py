@@ -26,6 +26,9 @@ class MPCControl_yvel(MPCControl_base):
         # YOUR CODE HERE
         idx = self.x_ids == VY
         self.Q[idx, idx] *= 1
+        
+        idx = self.u_ids == DR
+        self.R[idx, idx] *= 50
 
         self.lb_x = LB_X[self.x_ids]
         self.ub_x = UB_X[self.x_ids]
