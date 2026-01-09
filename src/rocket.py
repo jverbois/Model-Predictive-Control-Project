@@ -509,6 +509,7 @@ class Rocket(RocketBase):
                 u_cl[:, k], x_ol[..., k], u_ol[..., k], t_ol[..., k] = mpc.get_u(t_cl[k], x_cl[:, k])
                 x_cl[:, k+1] = self.simulate_step(x_cl[:, k], self.Ts, u_cl[:, k], method=method)
                 t_cl[k+1] = t_cl[k] + self.Ts
+                
 
         return t_cl, x_cl, u_cl, t_ol, x_ol, u_ol
     
