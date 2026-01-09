@@ -104,6 +104,7 @@ class NmpcCtrl:
 
         # set solver
         options = {
+            "expand": True,
             "print_time": False,
             "ipopt": {"sb": "yes", "print_level": 0, "tol": 1e-3},
         }

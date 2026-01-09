@@ -123,6 +123,7 @@ class MPCControl_base:
 
             KE = K @ E
             U = U - KE
+            self.U_ = U
             # Input constraints
 
             # Map to state constraints via feedback K
