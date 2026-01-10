@@ -140,8 +140,8 @@ class MPCControl_base:
             # State constraints
 
             if np.any(VZ == self.x_ids):
-                constraints.append(X.A @ self.x_var[:, :-1] <= X.b.reshape((-1, 1)))
                 X = X - E
+                constraints.append(X.A @ self.x_var[:, :-1] <= X.b.reshape((-1, 1)))
                 if constr_set is None:
                     constr_set = X
                 else:

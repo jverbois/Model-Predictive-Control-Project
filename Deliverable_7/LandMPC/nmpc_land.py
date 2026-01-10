@@ -3,7 +3,7 @@ import casadi as ca
 from control import dlqr
 from typing import Tuple
 from mpt4py import Polyhedron
-from .utils import LIMIT, Z, ALPHA, BETA, GAMA, WX, WY, LB_X, UB_X, LB_U, UB_U, X, Y, Z
+from .utils import LIMIT, Z, ALPHA, BETA, GAMA, WX, WY, LB_X, UB_X, LB_U, UB_U, X, Y, Z, DP, DR, P_AVG
 
 
 class NmpcCtrl:
@@ -49,14 +49,13 @@ class NmpcCtrl:
 
         Q = ca.DM(np.eye(self.nx))
         R = ca.DM(np.eye(self.nu))
-        Q[X, X] *= 20
-        Q[Y, Y] *= 20
-        Q[Z, Z] *= 35
-        Q[WX, WX] *= 300
-        Q[WY, WY] *= 300
-        Q[ALPHA, ALPHA] *= 10
-        Q[BETA, BETA] *= 10
-        Q[GAMA, GAMA] *= 250
+        Q[X, X] = 60
+        Q[Y, Y] = 60
+        Q[Z, Z] = 100
+        Q[GAMA, GAMA] = 10
+
+        R[DR, DR] = 700
+        R[DP, DP] = 700
         A, B = self.rocket.linearize(xs, us)
         K, Qf, _ = dlqr(A, B, Q, R)
         K = -K

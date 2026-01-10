@@ -28,16 +28,19 @@ class MPCControl_z(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+        idx = self.u_ids == P_AVG
+        self.R[idx, idx] *= 0.1
         idx = self.x_ids == VZ
-        self.Q[idx, idx] *= 100
+        self.Q[idx, idx] *= 35
         idx = self.x_ids == Z
         self.Q[idx, idx] *= 100
-        
+
         self.lb_x = LB_X[self.x_ids]
         self.ub_x = UB_X[self.x_ids]
 
         self.lb_u = LB_U[self.u_ids]
         self.ub_u = UB_U[self.u_ids]
+
 
         super()._setup_controller()
 
@@ -49,7 +52,7 @@ class MPCControl_z(MPCControl_base):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         #################################################
         # YOUR CODE HERE
-        
+
         u0, x_traj, u_traj = super().get_u(x0, x_target, u_target)
 
         # YOUR CODE HERE
@@ -75,3 +78,44 @@ class MPCControl_z(MPCControl_base):
         self.d_estimate = ...
         # YOUR CODE HERE
         ##################################################
+
+    def bestQ(self):
+        from control import dlqr
+        from scipy.signal import cont2discrete
+
+        Q = np.eye(self.nx) / 100
+        Q_prev = np.eye(self.nx)
+        current = 1
+        vz_min = 1
+        z_min = 1
+        best_vz = 1
+        best_z = 1
+        while np.abs(np.linalg.det(Q-Q_prev)) > 1e-5:
+            Q_prev = np.diag([best_vz, best_z])
+            Q[0, 0] = 1
+            Q[1, 1] = Q_prev[1,1]/2
+            for i in range(10000):
+                K, _, _ = dlqr(self.A, self.B, Q, self.R)
+                K = -K
+                Q[0, 0] += 0.1
+                A_cl = np.array(self.A + self.B @ K)
+                eig, _ = np.linalg.eig(A_cl)
+                current = np.max(np.abs(eig))
+                if current < vz_min:
+                    vz_min = current
+                    best_vz = Q[0, 0]
+            Q[0, 0] = Q_prev[0,0]/2
+            Q[1, 1] = 1
+            for i in range(10000):
+                K, _, _ = dlqr(self.A, self.B, Q, self.R)
+                K = -K
+                Q[1, 1] += 0.1
+                A_cl = np.array(self.A + self.B @ K)
+                eig, _ = np.linalg.eig(A_cl)
+                current = np.max(np.abs(eig))
+                if current < z_min:
+                    z_min = current
+                    best_z = Q[1, 1]
+            print(np.abs(np.linalg.det(Q-Q_prev)))
+            
+        return Q

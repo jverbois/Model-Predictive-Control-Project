@@ -77,7 +77,6 @@ class MPCControl_base:
         K, Qf, _ = dlqr(self.A, self.B, self.Q, self.R)
         K = -K
         self.A_cl = np.array(self.A + self.B @ K)
-
         # Variables and parameters
         nx, nu, N = self.nx, self.nu, self.N
         self.x_var = cp.Variable((nx, N + 1), name="x")
@@ -113,19 +112,17 @@ class MPCControl_base:
             )
 
         constr_set = None
+        KU = None
         if self.lb_u is not None and self.ub_u is not None:
             # U = { u | M @ u <= m } / -u <= -lb_u, u <= ub_u
             M = np.vstack((-np.eye(nu), np.eye(nu)))
-            m = np.hstack((-self.lb_u, self.ub_u))
+            m = np.hstack((-(self.lb_u), self.ub_u))
             idx = m != LIMIT
             U = Polyhedron.from_Hrep(M[idx, :], m[idx] - M[idx, :] @ self.us)
-            constraints.append(U.A @ self.u_var[:, :-1] <= U.b.reshape((-1, 1)))
-
-            KE = K @ E
-            U = U - KE
-            self.U_ = U
             # Input constraints
-
+            constraints.append(U.A @ self.u_var[:, :-1] <= U.b.reshape((-1, 1)))
+            KE = K @ E
+            self.U_tilde = U - KE
             # Map to state constraints via feedback K
             KU = Polyhedron.from_Hrep(U.A @ K, U.b)
             constr_set = KU
@@ -136,12 +133,9 @@ class MPCControl_base:
             f = np.hstack((-self.lb_x, self.ub_x))
             idx = f != LIMIT
             X = Polyhedron.from_Hrep(F[idx], f[idx] - F[idx] @ self.xs)
-            constraints.append(
-                X.A @ self.x_var[:, :-1]
-                <= X.b.reshape((-1, 1))
-            )
-            X = X - E
             # State constraints
+            X -= E
+            constraints.append(X.A @ self.x_var[:, :-1] <= X.b.reshape((-1, 1)))
 
             if constr_set is None:
                 constr_set = X
@@ -189,7 +183,6 @@ class MPCControl_base:
             self.d_hat_par.value = np.zeros(self.nd)
 
         self.ocp.solve(solver=cp.PIQP, verbose=False)
-        assert self.ocp.status == cp.OPTIMAL
 
         x_traj = np.array(self.x_var.value)
         u_traj = np.array(self.u_var.value)
@@ -198,7 +191,7 @@ class MPCControl_base:
             if self.x_hat_next is None:
                 self.x_hat_next = x_traj[:, 0]
             innovation = x_traj[:, 0] - self.x_hat_next
-            self.d_hat += 0.1*innovation[VZ == self.x_ids]
+            self.d_hat += innovation[VZ == self.x_ids]
             self.x_hat_next = (
                 self.A @ x_traj[:, 0] + self.B @ u_traj[:, 0] + self.Bd @ self.d_hat
             )
@@ -239,15 +232,19 @@ class MPCControl_base:
         self.O_inf = O
 
     def min_robust_invariant_set(
-        self, W: Polyhedron, max_iter: int = 300
+        self, W: Polyhedron, max_iter: int = 100
     ) -> Polyhedron:
         Omega = W
         itr = 1
+
         while itr < max_iter:
+
             A_cl_ith_power = np.linalg.matrix_power(self.A_cl, itr)
-            Omega = Omega + A_cl_ith_power @ W
-            Omega.minHrep()  # optionally: Omega_next.minVrep()
-            if np.linalg.matrix_norm(A_cl_ith_power, ord=2) < 1e-2:
+            Omega_next = Omega + A_cl_ith_power @ W
+            Omega_next.minHrep()
+            Omega_next.minVrep()
+
+            if Omega_next == Omega:
                 print(
                     "Minimal robust invariant set computation converged after {0} iterations.".format(
                         itr
@@ -263,6 +260,7 @@ class MPCControl_base:
                 )
 
             itr += 1
+            Omega = Omega_next
         title = "Min robust invariant set"
         legend = X_TO_STRING[self.x_ids]
         plot_polyhedron_2D(Omega, title, legend)

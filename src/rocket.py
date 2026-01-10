@@ -544,8 +544,7 @@ class Rocket(RocketBase):
 
         # Hard coding for sys_z and robust MPC only: changed in the future
         if constraint_check_sysZ(x, u):
-            print(f"State or input constraints violated,\t P_avg = {u[0]},\t z = {x[1]}")
-            #raise ValueError("Constraints violation detected, terminating...")
+            raise ValueError("Constraints violation detected, terminating...")
         xs, us = mpc.xs, mpc.us
         A, B = mpc.A, mpc.B
         x_next = A @ (x-xs) + B @ (u - us + w) + xs

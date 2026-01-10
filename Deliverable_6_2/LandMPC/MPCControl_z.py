@@ -28,8 +28,10 @@ class MPCControl_z(MPCControl_base):
     def _setup_controller(self) -> None:
         #################################################
         # YOUR CODE HERE
+        idx = self.u_ids == P_AVG
+        self.R[idx, idx] *= 0.1
         idx = self.x_ids == VZ
-        self.Q[idx, idx] *= 100
+        self.Q[idx, idx] *= 35
         idx = self.x_ids == Z
         self.Q[idx, idx] *= 100
         
