@@ -28,7 +28,7 @@ class MPCControl_xvel(MPCControl_base):
         idx = self.x_ids == VX
         self.Q[idx, idx] *= 1
         idx = self.x_ids == DP
-        self.Q[idx, idx] *= 50
+        self.Q[idx, idx] *= 10
 
         self.lb_x = LB_X[self.x_ids]
         self.ub_x = UB_X[self.x_ids]
